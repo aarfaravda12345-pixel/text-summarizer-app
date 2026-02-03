@@ -1,7 +1,5 @@
-flask
+--find-links https://download.pytorch.org/whl/cpu/torch_stable.html
+torch==2.2.1+cpu
 transformers
-torch
-spacy
-pytextrank
-rouge-score
+flask
 gunicorn
