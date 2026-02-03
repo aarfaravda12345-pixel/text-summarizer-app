@@ -1,69 +1,42 @@
-import os
-
-os.environ["GIT_PYTHON_REFRESH"] = "quiet"
-
-from flask import Flask, render_template, request
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-import spacy
-import pytextrank
-from rouge_score import rouge_scorer
 import torch
+from flask import Flask, render_template, request
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 app = Flask(__name__)
 
-# --- Manual Model Loading (No Pipelines) ---
-print("--- Loading AI Models Manually (Bypassing Tasks) ---")
+# 1. Using a smaller model + Half-precision (Diet Mode)
+model_path = "sshleifer/tinydistillbart-cnn-12-6"
 
-# 1. Extractive
-try:
-    nlp = spacy.load("en_core_web_sm")
-except:
-    os.system("python -m spacy download en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
-if "textrank" not in nlp.pipe_names:
-    nlp.add_pipe("textrank")
+# This loads the model much more efficiently for limited RAM
+model = AutoModelForSeq2SeqLM.from_pretrained(
+    model_path,
+    torch_dtype=torch.float16,  # Cuts memory in half!
+    low_cpu_mem_usage=True      # Prevents memory spikes
+)
+tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-    # 2. Abstractive (BART) - Loaded directly as a model object
-    print("--- AI is waking up... this takes 1 minute ---")
-    model_path = "sshleifer/distilbart-cnn-6-6"
-
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
-
-    print("--- ALL SYSTEMS READY: http://127.0.0.1:5000 ---")
-
-
-
-
-@app.route("/", methods=["GET", "POST"])
+@app.route('/')
 def index():
-    results = None
-    if request.method == "POST":
-        text = request.form.get("input_text")
-        if text and len(text.split()) > 20:
-            # --- Extractive Step ---
-            doc = nlp(text)
-            ext_sum = " ".join([sent.text for sent in doc._.textrank.summary(limit_sentences=3)])
+    return render_template('index.html')
 
-            # --- Abstractive Step (Manual Inference) ---
-            # This replaces the pipeline entirely to avoid the KeyError
-            inputs = tokenizer(text, max_length=1024, truncation=True, return_tensors="pt")
-            summary_ids = model.generate(inputs["input_ids"], max_length=130, min_length=30, do_sample=False)
-            abs_sum = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
-
-            # --- ROUGE Step ---
-            scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'], use_stemmer=True)
-            scores = scorer.score(ext_sum, abs_sum)
-
-            results = {
-                "extractive": ext_sum,
-                "abstractive": abs_sum,
-                "rouge1": round(scores['rouge1'].fmeasure, 2),
-                "rougeL": round(scores['rougeL'].fmeasure, 2)
-            }
-
-    return render_template("index.html", results=results)
-
+@app.route('/summarize', methods=['POST'])
+def summarize():
+    text = request.form['text']
+    
+    # Using 'torch.inference_mode' saves even more RAM during the actual summary
+    with torch.inference_mode():
+        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=1024)
+        summary_ids = model.generate(
+            inputs["input_ids"], 
+            max_length=150, 
+            min_length=40, 
+            length_penalty=2.0, 
+            num_beams=4, 
+            early_stopping=True
+        )
+        summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    
+    return render_template('index.html', original_text=text, summary=summary)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=10000)
