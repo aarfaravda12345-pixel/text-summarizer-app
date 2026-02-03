@@ -4,14 +4,14 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 app = Flask(__name__)
 
-# 1. Using a smaller model + Half-precision (Diet Mode)
-model_path = "sshleifer/tinydistillbart-cnn-12-6"
+# This is a very light model that fits in Render's free memory
+model_path = "sshleifer/distilbart-cnn-6-6"
 
-# This loads the model much more efficiently for limited RAM
+# Load with 'float16' to use 50% less RAM
 model = AutoModelForSeq2SeqLM.from_pretrained(
-    model_path,
-    torch_dtype=torch.float16,  # Cuts memory in half!
-    low_cpu_mem_usage=True      # Prevents memory spikes
+    model_path, 
+    torch_dtype=torch.float16, 
+    low_cpu_mem_usage=True
 )
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 
@@ -23,16 +23,14 @@ def index():
 def summarize():
     text = request.form['text']
     
-    # Using 'torch.inference_mode' saves even more RAM during the actual summary
+    # torch.inference_mode() keeps memory usage low during the calculation
     with torch.inference_mode():
-        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=1024)
+        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
         summary_ids = model.generate(
             inputs["input_ids"], 
             max_length=150, 
             min_length=40, 
-            length_penalty=2.0, 
-            num_beams=4, 
-            early_stopping=True
+            length_penalty=2.0
         )
         summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
     
