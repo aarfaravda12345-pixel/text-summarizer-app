@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Summarizer Project</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🎓 AI Text Summarizer Comparison</h1>
+        <p style="text-align:center; color:#666;">Internship Project: Extractive vs Abstractive NLP</p>
+
+        <form method="POST">
+            <textarea name="input_text" placeholder="Paste your article here (Minimum 50 words)..." required></textarea>
+            <button type="submit">Compare AI Models</button>
+        </form>
+
+        {% if results %}
+        <div class="results-grid">
+            <div class="card ext">
+                <h3>Extractive Summary</h3>
+                <small>Method: TextRank (Graph-based)</small>
+                <p>{{ results.extractive }}</p>
+            </div>
+            <div class="card abs">
+                <h3>Abstractive Summary</h3>
+                <small>Method: BART (Transformer-based)</small>
+                <p>{{ results.abstractive }}</p>
+            </div>
+        </div>
+
+        <div class="metrics">
+            <h3>📈 Performance Evaluation</h3>
+            <p>Word Overlap (ROUGE-1): <strong>{{ results.rouge1 }}</strong> | Sequence Match (ROUGE-L): <strong>{{ results.rougeL }}</strong></p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
