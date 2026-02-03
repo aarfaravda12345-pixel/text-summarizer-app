@@ -9,8 +9,7 @@ model_path = "sshleifer/distilbart-cnn-6-6"
 
 # Load with 'float16' to use 50% less RAM
 model = AutoModelForSeq2SeqLM.from_pretrained(
-    model_path, 
-    torch_dtype=torch.float16, 
+    model_path,  
     low_cpu_mem_usage=True
 )
 tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -38,3 +37,4 @@ def summarize():
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=10000)
+
